@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Gastos Personales</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 Registro de Gastos Personales</h1>
+            <p>Gestiona y controla tus gastos diarios</p>
+        </div>
+
+        <div class="content">
+            <!-- Sección de Registro de Gastos (RF1) -->
+            <div class="section">
+                <h2>📝 Registrar Gasto</h2>
+                <div id="successAlert" class="alert alert-success"></div>
+                <div id="errorAlert" class="alert alert-error"></div>
+                <form id="gastoForm">
+                    <div class="form-group">
+                        <label for="descripcion">Descripción *</label>
+                        <input type="text" id="descripcion" name="descripcion" placeholder="Ej: Desayuno en cafetería" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="categoria">Categoría *</label>
+                        <select id="categoria" name="categoria" required>
+                            <option value="">-- Seleccionar categoría --</option>
+                            <option value="Alimentación">Alimentación</option>
+                            <option value="Transporte">Transporte</option>
+                            <option value="Entretenimiento">Entretenimiento</option>
+                            <option value="Otros">Otros</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="monto">Monto ($) *</label>
+                        <input type="number" id="monto" name="monto" placeholder="0.00" step="0.01" min="0" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fecha">Fecha *</label>
+                        <input type="date" id="fecha" name="fecha" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Registrar Gasto</button>
+                </form>
+            </div>
+
+            <!-- Sección de Consulta y Filtrado de Gastos (RF2 y RF5) -->
+            <div class="section">
+                <h2>📊 Mis Gastos</h2>
+
+                <div class="filter-container">
+                    <select id="filterCategoria">
+                        <option value="">Todas las categorías</option>
+                        <option value="Alimentación">Alimentación</option>
+                        <option value="Transporte">Transporte</option>
+                        <option value="Entretenimiento">Entretenimiento</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+
+                    <input type="date" id="filterFecha">
+
+                    <button id="btnFiltrar" type="button">Filtrar</button>
+                    <button id="btnLimpiar" type="button" class="btn-limpiar">Limpiar</button>
+                </div>
+
+                <div class="table-container">
+                    <table id="gastosTable">
+                        <thead>
+                            <tr>
+                                <th>Descripción</th>
+                                <th>Categoría</th>
+                                <th>Monto</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gastosTableBody">
+                            <tr>
+                                <td colspan="5" class="empty-message">No hay gastos registrados</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="total-container">
+                    <h3>Total de Gastos</h3>
+                    <div class="total-amount" id="totalAmount">$0.00</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Confirmación de Eliminación (RF4) -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <h3>⚠️ Confirmar Eliminación</h3>
+            <p>¿Estás seguro de que deseas eliminar este gasto?</p>
+            <div class="modal-buttons">
+                <button id="btnConfirmarEliminacion" type="button" class="btn-confirm">Eliminar</button>
+                <button id="btnCancelarEliminacion" type="button" class="btn-cancel">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Edición de Gasto (RF3) -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <h3>✏️ Editar Gasto</h3>
+            <form id="editForm">
+                <div class="form-group">
+                    <label for="editDescripcion">Descripción</label>
+                    <input type="text" id="editDescripcion" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="editCategoria">Categoría</label>
+                    <select id="editCategoria" required>
+                        <option value="Alimentación">Alimentación</option>
+                        <option value="Transporte">Transporte</option>
+                        <option value="Entretenimiento">Entretenimiento</option>
+                        <option value="Otros">Otros</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="editMonto">Monto ($)</label>
+                    <input type="number" id="editMonto" step="0.01" min="0" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="editFecha">Fecha</label>
+                    <input type="date" id="editFecha" required>
+                </div>
+
+                <div class="modal-buttons">
+                    <button type="submit" class="btn-confirm">Guardar Cambios</button>
+                    <button id="btnCancelarEdicion" type="button" class="btn-cancel">Cancelar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ==================== VARIABLES GLOBALES ====================
+        let gastos = [];
+        let gastoEnEdicion = null;
+        let gastoAEliminar = null;
+        let gastosFiltrados = [];
+        let filtroActivo = false;
+
+        // ==================== INICIALIZACIÓN ====================
+        document.addEventListener('DOMContentLoaded', function() {
+            cargarGastos();
+            establecerFechaHoy();
+            mostrarGastos();
+            
+            // Event Listeners para formularios
+            document.getElementById('gastoForm').addEventListener('submit', registrarGasto);
+            document.getElementById('editForm').addEventListener('submit', guardarEdicion);
+            
+            // Event Listeners para botones de filtros
+            document.getElementById('btnFiltrar').addEventListener('click', aplicarFiltros);
+            document.getElementById('btnLimpiar').addEventListener('click', limpiarFiltros);
+            
+            // Event Listeners para modales
+            document.getElementById('btnConfirmarEliminacion').addEventListener('click', confirmarEliminacion);
+            document.getElementById('btnCancelarEliminacion').addEventListener('click', cancelarEliminacion);
+            document.getElementById('btnCancelarEdicion').addEventListener('click', cancelarEdicion);
+            
+            // Event Listener para tabla (delegado)
+            document.getElementById('gastosTableBody').addEventListener('click', manejarEventosTabla);
+        });
+
+        // ==================== RF6: PERSISTENCIA DE DATOS ====================
+        function guardarGastos() {
+            localStorage.setItem('gastos', JSON.stringify(gastos));
+            mostrarMensaje('Gastos guardados correctamente', 'success');
+        }
+
+        function cargarGastos() {
+            const gastosGuardados = localStorage.getItem('gastos');
+            gastos = gastosGuardados ? JSON.parse(gastosGuardados) : [];
+        }
+
+        // ==================== RF1: REGISTRAR GASTO ====================
+        function registrarGasto(e) {
+            e.preventDefault();
+
+            const descripcion = document.getElementById('descripcion').value.trim();
+            const categoria = document.getElementById('categoria').value;
+            const monto = parseFloat(document.getElementById('monto').value);
+            const fecha = document.getElementById('fecha').value;
+
+            // Validaciones
+            if (!descripcion || !categoria || !monto || !fecha) {
+                mostrarMensaje('Por favor, completa todos los campos', 'error');
+                return;
+            }
+
+            if (monto <= 0) {
+                mostrarMensaje('El monto debe ser mayor a 0', 'error');
+                return;
+            }
+
+            const nuevoGasto = {
+                id: Date.now(),
+                descripcion,
+                categoria,
+                monto,
+                fecha,
+                fechaCreacion: new Date().toISOString()
+            };
+
+            gastos.push(nuevoGasto);
+            guardarGastos();
+            document.getElementById('gastoForm').reset();
+            establecerFechaHoy();
+            filtroActivo = false;
+            limpiarFiltrosUI();
+            mostrarGastos();
+            mostrarMensaje('¡Gasto registrado exitosamente!', 'success');
+        }
+
+        // ==================== RF2: CONSULTAR GASTOS ====================
+        function mostrarGastos(listaGastos = gastos) {
+            const tbody = document.getElementById('gastosTableBody');
+
+            if (listaGastos.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="empty-message">
+                            No hay gastos registrados
+                        </td>
+                    </tr>
+                `;
+                actualizarTotal(0);
+                return;
+            }
+
+            tbody.innerHTML = listaGastos.map(gasto => `
+                <tr>
+                    <td>${gasto.descripcion}</td>
+                    <td>
+                        <span class="category-badge badge-${gasto.categoria.toLowerCase().replace(/\s+/g, '')}">
+                            ${gasto.categoria}
+                        </span>
+                    </td>
+                    <td>$${gasto.monto.toFixed(2)}</td>
+                    <td>${formatearFecha(gasto.fecha)}</td>
+                    <td>
+                        <div class="actions-cell">
+                            <button class="btn-edit" data-id="${gasto.id}" data-action="editar">Editar</button>
+                            <button class="btn-danger" data-id="${gasto.id}" data-action="eliminar">Eliminar</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            const total = listaGastos.reduce((sum, gasto) => sum + gasto.monto, 0);
+            actualizarTotal(total);
+        }
+
+        function actualizarTotal(total) {
+            document.getElementById('totalAmount').textContent = `$${total.toFixed(2)}`;
+        }
+
+        // ==================== MANEJADOR DE EVENTOS DE TABLA ====================
+        function manejarEventosTabla(e) {
+            const button = e.target;
+            if (!button.classList.contains('btn-edit') && !button.classList.contains('btn-danger')) {
+                return;
+            }
+
+            const id = parseInt(button.getAttribute('data-id'));
+            const action = button.getAttribute('data-action');
+
+            if (action === 'editar') {
+                abrirEdicion(id);
+            } else if (action === 'eliminar') {
+                abrirEliminacion(id);
+            }
+        }
+
+        // ==================== RF3: EDITAR GASTO ====================
+        function abrirEdicion(id) {
+            const gasto = gastos.find(g => g.id === id);
+            if (!gasto) return;
+
+            gastoEnEdicion = gasto;
+            document.getElementById('editDescripcion').value = gasto.descripcion;
+            document.getElementById('editCategoria').value = gasto.categoria;
+            document.getElementById('editMonto').value = gasto.monto;
+            document.getElementById('editFecha').value = gasto.fecha;
+
+            document.getElementById('editModal').classList.add('active');
+        }
+
+        function guardarEdicion(e) {
+            e.preventDefault();
+
+            if (!gastoEnEdicion) return;
+
+            const descripcion = document.getElementById('editDescripcion').value.trim();
+            const categoria = document.getElementById('editCategoria').value;
+            const monto = parseFloat(document.getElementById('editMonto').value);
+            const fecha = document.getElementById('editFecha').value;
+
+            if (!descripcion || !categoria || !monto || !fecha) {
+                mostrarMensaje('Por favor, completa todos los campos', 'error');
+                return;
+            }
+
+            if (monto <= 0) {
+                mostrarMensaje('El monto debe ser mayor a 0', 'error');
+                return;
+            }
+
+            gastoEnEdicion.descripcion = descripcion;
+            gastoEnEdicion.categoria = categoria;
+            gastoEnEdicion.monto = monto;
+            gastoEnEdicion.fecha = fecha;
+
+            guardarGastos();
+            
+            if (filtroActivo) {
+                aplicarFiltros();
+            } else {
+                mostrarGastos();
+            }
+            
+            cancelarEdicion();
+            mostrarMensaje('¡Gasto actualizado exitosamente!', 'success');
+        }
+
+        function cancelarEdicion() {
+            gastoEnEdicion = null;
+            document.getElementById('editModal').classList.remove('active');
+            document.getElementById('editForm').reset();
+        }
+
+        // ==================== RF4: ELIMINAR GASTO ====================
+        function abrirEliminacion(id) {
+            gastoAEliminar = id;
+            document.getElementById('deleteModal').classList.add('active');
+        }
+
+        function confirmarEliminacion() {
+            if (gastoAEliminar === null) return;
+
+            gastos = gastos.filter(g => g.id !== gastoAEliminar);
+            guardarGastos();
+            
+            if (filtroActivo) {
+                aplicarFiltros();
+            } else {
+                mostrarGastos();
+            }
+            
+            cancelarEliminacion();
+            mostrarMensaje('¡Gasto eliminado exitosamente!', 'success');
+        }
+
+        function cancelarEliminacion() {
+            gastoAEliminar = null;
+            document.getElementById('deleteModal').classList.remove('active');
+        }
+
+        // ==================== RF5: FILTRAR GASTOS ====================
+        function aplicarFiltros() {
+            const categoria = document.getElementById('filterCategoria').value;
+            const fecha = document.getElementById('filterFecha').value;
+
+            let gastosFilt = gastos;
+
+            if (categoria) {
+                gastosFilt = gastosFilt.filter(g => g.categoria === categoria);
+            }
+
+            if (fecha) {
+                gastosFilt = gastosFilt.filter(g => g.fecha === fecha);
+            }
+
+            filtroActivo = true;
+            gastosFiltrados = gastosFilt;
+            mostrarGastos(gastosFilt);
+
+            if (gastosFilt.length === 0) {
+                mostrarMensaje('No se encontraron gastos con los filtros aplicados', 'error');
+            }
+        }
+
+        function limpiarFiltros() {
+            limpiarFiltrosUI();
+            filtroActivo = false;
+            gastosFiltrados = [];
+            mostrarGastos(gastos);
+            mostrarMensaje('Filtros eliminados', 'success');
+        }
+
+        function limpiarFiltrosUI() {
+            document.getElementById('filterCategoria').value = '';
+            document.getElementById('filterFecha').value = '';
+        }
+
+        // ==================== FUNCIONES AUXILIARES ====================
+        function establecerFechaHoy() {
+            const hoy = new Date().toISOString().split('T')[0];
+            document.getElementById('fecha').value = hoy;
+        }
+
+        function formatearFecha(fecha) {
+            const opciones = { year: 'numeric', month: 'long', day: 'numeric' };
+            return new Date(fecha).toLocaleDateString('es-ES', opciones);
+        }
+
+        function mostrarMensaje(mensaje, tipo) {
+            const alertId = tipo === 'success' ? 'successAlert' : 'errorAlert';
+            const alert = document.getElementById(alertId);
+            alert.textContent = mensaje;
+            alert.classList.add('show');
+
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
